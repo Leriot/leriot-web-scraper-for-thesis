@@ -61,6 +61,9 @@ class ScraperMenu:
         print("    [10] Discover Sitemap URLs")
         print("    [11] Run Configuration Diagnostics")
         print("    [12] View Statistics")
+        print("  DATA PROCESSING:")
+        print("    [13] Process PDFs (Extract Text)")
+        print("    [14] OCR Quarantined PDFs")
         print("  [0] Exit")
         print()
 
@@ -633,6 +636,128 @@ class ScraperMenu:
 
         input("\nPress ENTER to continue...")
 
+    def process_pdfs(self):
+        """Run PDF text extraction on scraped documents"""
+        self.clear_screen()
+        self.print_header()
+        print("PROCESS PDFs - EXTRACT TEXT\n")
+
+        print("This tool extracts text from scraped PDF documents.")
+        print("PDFs with insufficient text (<100 chars) are quarantined for OCR.\n")
+
+        print("Which organization's PDFs would you like to process?")
+        print("  - Enter organization name (e.g., 'Hnutí DUHA')")
+        print("  - Press ENTER to process all organizations")
+        print()
+
+        org = self.get_input("Organization name", "all")
+        if org.lower() == "all":
+            org = None
+
+        # Build command
+        if org:
+            cmd = ["python", "scripts/process_pdfs.py", "--org", org]
+        else:
+            cmd = ["python", "scripts/process_pdfs.py", "--all"]
+
+        # Ask about minimum character threshold
+        if self.confirm("\nUse custom minimum character threshold? (default: 100)"):
+            min_chars = self.get_input("Minimum characters", "100")
+            cmd.extend(["--min-chars", min_chars])
+
+        print("\nRunning PDF processor...\n")
+
+        try:
+            subprocess.run(cmd, cwd=Path(__file__).parent.parent)
+            print("\n✓ Done!")
+        except Exception as e:
+            print(f"\n✗ Error: {e}")
+
+        input("\nPress ENTER to continue...")
+
+    def ocr_quarantined_pdfs(self):
+        """Run OCR on quarantined PDFs"""
+        self.clear_screen()
+        self.print_header()
+        print("OCR QUARANTINED PDFs\n")
+
+        print("=" * 70)
+        print("IMPORTANT: Tesseract OCR must be installed on your system")
+        print("=" * 70)
+        print("\nIf you haven't installed Tesseract yet, please do so first:")
+        print("\n  Windows:")
+        print("    Download from: https://github.com/UB-Mannheim/tesseract/wiki")
+        print("    Select Czech language pack during installation")
+        print("\n  macOS:")
+        print("    brew install tesseract tesseract-lang")
+        print("\n  Linux:")
+        print("    sudo apt-get install tesseract-ocr tesseract-ocr-ces")
+        print("\n" + "=" * 70)
+
+        if not self.confirm("\nHave you installed Tesseract?"):
+            print("\nPlease install Tesseract first, then try again.")
+            input("\nPress ENTER to continue...")
+            return
+
+        print("\nThis tool processes PDFs that were quarantined during text extraction.")
+        print("It uses OCR to extract text from scanned/image-based PDFs.\n")
+
+        print("Which organization's quarantined PDFs would you like to process?")
+        print("  - Enter organization name (e.g., 'Hnutí DUHA')")
+        print("  - Press ENTER to process all organizations")
+        print()
+
+        org = self.get_input("Organization name", "all")
+        if org.lower() == "all":
+            org = None
+
+        # Build command
+        if org:
+            cmd = ["python", "scripts/ocr_pdfs.py", "--org", org]
+        else:
+            cmd = ["python", "scripts/ocr_pdfs.py", "--all"]
+
+        # Ask about Tesseract path (for Windows users)
+        if sys.platform == "win32":
+            if self.confirm("\nSpecify custom Tesseract path? (Usually not needed if in PATH)"):
+                tesseract_path = self.get_input("Tesseract executable path")
+                if tesseract_path:
+                    cmd.extend(["--tesseract-path", tesseract_path])
+
+        # Ask about language
+        print("\nOCR Language options:")
+        print("  [1] English + Czech (default, recommended)")
+        print("  [2] English only (faster)")
+        print("  [3] Czech only")
+        print("  [4] Custom")
+
+        lang_choice = self.get_input("Select language", "1")
+
+        lang_map = {
+            "1": "eng+ces",
+            "2": "eng",
+            "3": "ces"
+        }
+
+        if lang_choice == "4":
+            custom_lang = self.get_input("Enter language codes (e.g., eng+fra+deu)")
+            if custom_lang:
+                cmd.extend(["--lang", custom_lang])
+        elif lang_choice in lang_map:
+            if lang_choice != "1":  # Only add if not default
+                cmd.extend(["--lang", lang_map[lang_choice]])
+
+        print("\nRunning OCR processor...")
+        print("This may take several minutes depending on the number of PDFs.\n")
+
+        try:
+            subprocess.run(cmd, cwd=Path(__file__).parent.parent)
+            print("\n✓ Done!")
+        except Exception as e:
+            print(f"\n✗ Error: {e}")
+
+        input("\nPress ENTER to continue...")
+
     def view_organizations(self):
         """View all organizations and their scraping history"""
         self.clear_screen()
@@ -946,6 +1071,10 @@ class ScraperMenu:
                 self.run_diagnostics()
             elif choice == "12":
                 self.view_statistics()
+            elif choice == "13":
+                self.process_pdfs()
+            elif choice == "14":
+                self.ocr_quarantined_pdfs()
             elif choice == "0":
                 if self.confirm("\nExit scraper menu?"):
                     self.running = False

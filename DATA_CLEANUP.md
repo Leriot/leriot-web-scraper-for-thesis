@@ -1,15 +1,18 @@
 # Data Cleanup Tools
 
-This repository includes two Python scripts for processing and filtering scraped data. These tools help prepare raw scraped content for LLM-based network analysis.
+This repository includes Python scripts for processing and filtering scraped data. These tools help prepare raw scraped content for LLM-based network analysis.
 
 ## Overview
 
 ```
-Raw Data → Script 1: PDF Extraction → Script 2: Content Filtering → Clean Data for Analysis
+Raw Data → Script 1: PDF Extraction → Script 1.5: OCR Processing → Script 2: Content Filtering → Clean Data for Analysis
+                            ↓
+                    Quarantine (needs_ocr/)
 ```
 
 1. **`process_pdfs.py`** - Extracts text from PDFs, quarantines image-based scans
-2. **`filter_content.py`** - Cleans HTML, deduplicates, filters for relevance
+2. **`ocr_pdfs.py`** - OCR processing for quarantined scanned PDFs (requires Tesseract)
+3. **`filter_content.py`** - Cleans HTML, deduplicates, filters for relevance
 
 ---
 
@@ -93,13 +96,184 @@ TEXT_LENGTH: 4521 characters
 
 1. **Header detection**: Only checks first line of each page (won't catch multi-line headers)
 2. **Footer detection**: Not specifically handled (only headers are detected)
-3. **OCR not included**: Scanned PDFs are identified but not automatically OCR'd
+3. **Scanned PDFs**: Only identified and quarantined; use `ocr_pdfs.py` to process them (see Script 1.5 below)
 
 ### Dependencies
 
 ```bash
 pip install pdfplumber
 ```
+
+---
+
+## Script 1.5: `ocr_pdfs.py` - OCR Processing for Scanned PDFs
+
+### Purpose
+Processes quarantined PDFs (from `process_pdfs.py`) that contain scanned images rather than extractable text. Uses Tesseract OCR to extract text from image-based PDFs.
+
+### Prerequisites
+
+**IMPORTANT: Tesseract must be installed on your system before running this script.**
+
+#### Tesseract Installation
+
+**Windows:**
+1. Download installer from [Tesseract at UB Mannheim](https://github.com/UB-Mannheim/tesseract/wiki)
+2. Run installer and select **Czech language pack** during installation
+3. Add Tesseract to your PATH, or note the installation path (e.g., `C:\Program Files\Tesseract-OCR\tesseract.exe`)
+
+**macOS:**
+```bash
+brew install tesseract tesseract-lang
+```
+
+**Linux (Debian/Ubuntu):**
+```bash
+sudo apt-get update
+sudo apt-get install tesseract-ocr tesseract-ocr-ces poppler-utils
+```
+
+#### Verify Installation
+
+```bash
+tesseract --version
+tesseract --list-langs  # Should show 'eng' and 'ces' (Czech)
+```
+
+### What It Does
+
+#### 1. PDF to Image Conversion
+- Converts each PDF page to high-resolution images (300 DPI)
+- Uses `pdf2image` library (requires poppler)
+
+#### 2. OCR Processing
+- Runs Tesseract OCR on each page image
+- Supports multiple languages simultaneously (default: English + Czech)
+- Combines text from all pages with page markers
+
+#### 3. Text Extraction
+- Saves extracted text in same format as `process_pdfs.py`
+- Includes metadata: source file, timestamp, language, character count
+
+#### 4. File Management
+- Successfully processed PDFs → moved to `ocr_processed/` folder
+- Extracted text → saved to `extracted_text/` (same as regular PDFs)
+
+### Usage
+
+```bash
+# Process all quarantined PDFs for one organization
+python scripts/ocr_pdfs.py --org "Hnutí DUHA"
+
+# Process specific scrape session
+python scripts/ocr_pdfs.py --org "Hnutí DUHA" --session "20240115_103000"
+
+# Process all organizations
+python scripts/ocr_pdfs.py --all
+
+# English only (faster, but may miss Czech text)
+python scripts/ocr_pdfs.py --org "Arnika" --lang eng
+
+# Windows with custom Tesseract path
+python scripts/ocr_pdfs.py --org "Arnika" --tesseract-path "C:/Program Files/Tesseract-OCR/tesseract.exe"
+```
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--org` | Organization name to process | Required (unless --all) |
+| `--session` | Specific session timestamp | All sessions |
+| `--all` | Process all organizations | False |
+| `--lang` | OCR language(s) (e.g., eng, ces, eng+ces) | `eng+ces` |
+| `--tesseract-path` | Path to Tesseract executable | Auto-detected |
+| `--data-root` | Root data directory | `data` |
+
+### Input/Output Structure
+
+**Input:** PDFs from the quarantine folder
+```
+data/processed/{org}/{session}/
+└── needs_ocr/               # Quarantined PDFs from process_pdfs.py
+    ├── scan1.pdf
+    └── scan2.pdf
+```
+
+**Output:** Extracted text and processed PDFs
+```
+data/processed/{org}/{session}/
+├── extracted_text/          # OCR'd text files (merged with regular extractions)
+│   ├── scan1.txt
+│   └── scan2.txt
+└── ocr_processed/           # Successfully processed PDFs (moved from needs_ocr/)
+    ├── scan1.pdf
+    └── scan2.pdf
+```
+
+### Output Format
+
+Each `.txt` file includes metadata header:
+```
+SOURCE_FILE: scan_report_2023.pdf
+OCR_EXTRACTED: 2024-01-15T14:30:00
+TEXT_LENGTH: 3421 characters
+OCR_LANGUAGE: eng+ces
+
+--- Page 1 ---
+[OCR extracted text from page 1...]
+
+--- Page 2 ---
+[OCR extracted text from page 2...]
+```
+
+### Performance Notes
+
+- **Speed**: ~30-60 seconds per page depending on content complexity and system speed
+- **Accuracy**:
+  - Clean scanned text: 95-99% accuracy
+  - Low-quality scans: 70-90% accuracy
+  - Handwritten text: Poor accuracy (not recommended)
+- **Language support**: Works best with English and Czech; other languages require additional language packs
+
+### Troubleshooting
+
+**Error: "Tesseract is not installed or not accessible"**
+- Verify Tesseract is installed: `tesseract --version`
+- Windows: Add Tesseract to PATH or use `--tesseract-path`
+- Mac/Linux: Reinstall with package manager
+
+**Error: "Missing language packs"**
+- Check available languages: `tesseract --list-langs`
+- Install missing languages:
+  - Windows: Re-run installer and select languages
+  - Mac: `brew install tesseract-lang`
+  - Linux: `sudo apt-get install tesseract-ocr-ces` (for Czech)
+
+**Poor OCR quality:**
+- Check source PDF quality (blurry scans won't OCR well)
+- Try single-language mode if bilingual detection fails: `--lang eng` or `--lang ces`
+- Consider manual review for critical documents
+
+### Dependencies
+
+```bash
+pip install pytesseract pdf2image Pillow
+```
+
+**System dependencies:**
+- Tesseract OCR (see installation instructions above)
+- Poppler (for PDF to image conversion):
+  - Windows: Included in pdf2image or install separately
+  - Mac: `brew install poppler`
+  - Linux: `sudo apt-get install poppler-utils`
+
+### Integration with Main UI
+
+The OCR processor is integrated into the scraper menu (`scripts/scraper_menu.py`):
+- **Option [13]**: Process PDFs (Extract Text) - runs `process_pdfs.py`
+- **Option [14]**: OCR Quarantined PDFs - runs `ocr_pdfs.py`
+
+The menu will remind you to install Tesseract before running OCR.
 
 ---
 
