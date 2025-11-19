@@ -43,6 +43,9 @@ coloredlogs>=15.0.1
 # Data Storage
 jsonlines>=4.0.0
 
+# Named Entity Recognition
+gliner>=0.2.0
+
 # Optional: For JavaScript-heavy sites (uncomment if needed)
 # playwright>=1.40.0
 # selenium>=4.15.0
