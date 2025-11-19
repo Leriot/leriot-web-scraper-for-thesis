@@ -208,6 +208,42 @@ This document provides academic references for all third-party libraries, tools,
 
 ---
 
+## Natural Language Processing and Machine Learning
+
+### Named Entity Recognition
+
+#### GLiNER
+- **Citation:** Zaratiana, U., Tomeh, N., Holat, P., & Charnois, T. (2024). GLiNER: Generalist Model for Named Entity Recognition using Bidirectional Transformer. In *Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers)* (pp. 5364-5376). Association for Computational Linguistics. https://doi.org/10.18653/v1/2024.naacl-long.300
+- **Software:** Zaratiana, U. (2024). GLiNER (Version 0.2.0) [Software]. https://github.com/urchade/GLiNER
+- **License:** Apache License 2.0
+- **Repository:** https://github.com/urchade/GLiNER
+- **Models:** https://huggingface.co/urchade
+- **Documentation:** https://github.com/urchade/GLiNER
+- **ArXiv:** https://arxiv.org/abs/2311.08526
+- **DOI:** 10.18653/v1/2024.naacl-long.300
+- **Note:** Used for zero-shot extraction of organizations and persons from Czech NGO texts without requiring training data.
+
+#### PyTorch
+- **Citation:** Paszke, A., Gross, S., Massa, F., Lerer, A., Bradbury, J., Chanan, G., ... & Chintala, S. (2019). PyTorch: An imperative style, high-performance deep learning library. In *Advances in Neural Information Processing Systems* 32 (pp. 8024-8035). https://arxiv.org/abs/1912.01703
+- **Software:** PyTorch Team (2024). PyTorch (Version 2.0+) [Software]. https://pytorch.org/
+- **License:** BSD 3-Clause License
+- **Copyright:** Copyright © 2016-2024 Facebook, Inc. (Meta Platforms)
+- **Repository:** https://github.com/pytorch/pytorch
+- **Documentation:** https://pytorch.org/docs/
+- **Note:** Deep learning framework used by GLiNER for transformer-based entity recognition.
+
+#### Transformers (Hugging Face)
+- **Citation:** Wolf, T., Debut, L., Sanh, V., Chaumond, J., Delangue, C., Moi, A., ... & Rush, A. M. (2020). Transformers: State-of-the-art natural language processing. In *Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations* (pp. 38-45). Association for Computational Linguistics. https://doi.org/10.18653/v1/2020.emnlp-demos.6
+- **Software:** Hugging Face (2024). Transformers (Version 4.38+) [Software]. https://github.com/huggingface/transformers
+- **License:** Apache License 2.0
+- **Copyright:** Copyright © 2018-2024 The Hugging Face team
+- **Repository:** https://github.com/huggingface/transformers
+- **Documentation:** https://huggingface.co/docs/transformers/
+- **DOI:** 10.18653/v1/2020.emnlp-demos.6
+- **Note:** Provides pre-trained multilingual transformer models (DeBERTa) used by GLiNER.
+
+---
+
 ## Development Tools
 
 ### Testing

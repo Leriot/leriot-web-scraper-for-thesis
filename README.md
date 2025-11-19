@@ -429,6 +429,45 @@ You can:
 
 **See `DATA_CLEANUP.md` for comprehensive documentation.**
 
+### Tool 3: Actor Extraction with GLiNER (`extract_actors.py`)
+
+Extracts actors (Organizations and Persons) from Czech text using GLiNER for network analysis:
+
+```bash
+# Extract actors from one organization (recommended)
+python scripts/extract_actors.py --org "Hnutí DUHA"
+
+# Extract from all organizations
+python scripts/extract_actors.py --all
+
+# Adjust confidence threshold (lower = more entities, higher = more precise)
+python scripts/extract_actors.py --org "Arnika" --threshold 0.3
+
+# List available data
+python scripts/extract_actors.py --list
+```
+
+**What it does:**
+- ✅ Uses GLiNER multilingual model for zero-shot entity recognition
+- ✅ Extracts "Organization" and "Person" entities from Czech texts
+- ✅ No training required - works out of the box on Czech language
+- ✅ Creates SQLite database per organization with:
+  - All extracted entities with context
+  - Co-occurrence networks (actors mentioned together)
+  - Source document tracking
+- ✅ Exports JSON files for network analysis
+
+**Output:**
+- `data/actors/{org}/{session}/actors.db` - SQLite database
+- `data/actors/{org}/{session}/entities.json` - All entities with context
+- `data/actors/{org}/{session}/unique_entities.json` - Deduplicated entities
+- `data/actors/{org}/{session}/co_occurrence_network.json` - Network edges
+
+**Requirements:**
+- Requires GPU for optimal performance (CPU works but slower)
+- Downloads ~500MB model on first run
+- Processes only "relevant" content by default (from filter_content.py)
+
 ### Complete Workflow
 
 ```bash
@@ -441,8 +480,11 @@ python scripts/process_pdfs.py --all
 # 3. Filter and clean HTML content
 python scripts/filter_content.py --all
 
-# 4. Use filtered data for LLM-based network analysis
-# (relevant content is in data/processed/*/relevant/)
+# 4. Extract actors (organizations and persons) using GLiNER
+python scripts/extract_actors.py --all
+
+# 5. Analyze network data
+# (actor databases are in data/actors/*/*, JSON files ready for analysis)
 ```
 
 ## Ethical Compliance
