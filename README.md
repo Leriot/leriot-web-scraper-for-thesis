@@ -586,13 +586,40 @@ For questions or issues:
 - Built for thesis research at Masaryk University
 - Based on COMPON project methodology
 - Follows ethical web scraping guidelines
+- Builds upon excellent open-source libraries (see [REFERENCES.md](REFERENCES.md))
+
+Special thanks to the developers and maintainers of:
+- Python Software Foundation
+- Project Jupyter
+- NetworkX team
+- Beautiful Soup developers
+- All contributors to the scientific Python ecosystem
 
 ## Citation
+
+### Citing This Project
 
 If you use this scraper in your research, please cite:
 
 ```
 [Your Name]. (2024). Academic Web Scraper for NGO Network Analysis.
 Thesis Research, Masaryk University.
+https://github.com/Leriot/leriot-web-scraper-for-thesis
 ```
+
+### Citing Dependencies
+
+This project uses many third-party libraries. For academic publications, please also cite the relevant libraries you use. Complete citation information for all dependencies is available in:
+
+- **[REFERENCES.md](REFERENCES.md)** - Comprehensive reference list with APA citations, licenses, and DOIs
+- **[REFERENCES.bib](REFERENCES.bib)** - BibTeX file for LaTeX users
+
+Key libraries to cite:
+- **NetworkX** (Hagberg et al., 2008) - Network analysis
+- **Beautiful Soup** (Richardson, 2023) - Web scraping
+- **pandas** (McKinney & pandas team, 2023) - Data processing
+- **Jupyter** (Kluyver et al., 2016) - Interactive analysis
+- **Matplotlib** (Hunter, 2007) - Visualization
+
+See `REFERENCES.md` for complete citations and DOIs.
 
