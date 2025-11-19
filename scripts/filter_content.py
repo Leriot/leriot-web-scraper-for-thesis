@@ -49,10 +49,14 @@ import sys
 import re
 import string
 import argparse
+import yaml
 from pathlib import Path
 from collections import defaultdict, Counter
 from datetime import datetime
 from bs4 import BeautifulSoup
+
+# --- DEFAULT PATHS ---
+DEFAULT_CONFIG_PATH = "config/content_filter_keywords.yaml"
 
 # --- FILTERING CONFIGURATION (The "Tuning Knobs") ---
 
@@ -65,66 +69,93 @@ DEFAULT_MIN_DENSITY = 0.5
 # 3. Deduplication threshold (Jaccard similarity)
 DEFAULT_SIMILARITY_THRESHOLD = 0.85
 
-# --- BOILERPLATE REMOVAL CONFIG ---
-BOILERPLATE_TERMS = [
-    'nav', 'footer', 'header', 'sidebar', 'menu', 'cookie',
-    'banner', 'ad-', 'ads', 'social', 'share', 'breadcrumb',
-    'widget', 'popup', 'modal', 'search', 'promoted', 'related', 'archive'
-]
 
-SAFE_TERMS = [
-    'layout', 'wrapper', 'container', 'main', 'body', 'article',
-    'node', 'content', 'page', 'section'
-]
+def load_keyword_config(config_path):
+    """
+    Load keyword configuration from YAML file.
 
-# --- RELEVANCE KEYWORDS (Czech Social Science) ---
-RELEVANCE_KEYWORDS = {
-    # RELATIONS (High Value - The "Gold")
-    'spoluprác': 3,   # spolupráce (cooperation)
-    'partner': 3,     # partneři (partners)
-    'alianc': 3,      # aliance
-    'koalic': 3,      # koalice
-    'člen': 2,        # členství, členové (member)
-    'platform': 2,    # platforma
-    'síť': 2,         # síť (network)
+    Returns:
+        dict: Configuration containing keywords, boilerplate terms, and thresholds
+    """
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
 
-    # FUNDING (Resource Dependency)
-    'grant': 3,       # grant
-    'financ': 2,      # financování (financing)
-    'dar': 2,         # dárce (donor)
-    'nadac': 2,       # nadace (foundation)
-    'fond': 2,        # fondy (funds)
-    'dotac': 2,       # dotace (subsidy)
-    'sponzor': 2,
+        # Build keyword dictionary with enhanced variations
+        keywords_dict = {}
 
-    # POLICY / ACTORS (Influence)
-    'ministerstv': 3, # ministerstvo (ministry)
-    'vlád': 1,        # vláda (government) - low weight (common)
-    'parlament': 2,   # parlament
-    'senát': 2,
-    'výbor': 1,       # committee
-    'zákon': 1,       # law - low weight (common)
-    'návrh': 1,       # proposal
-    'strategi': 1,    # strategie
-    'klimat': 1,      # klima (topic context)
-    'uhlí': 1,        # coal (topic context)
+        for category, keywords_list in config['keywords'].items():
+            for keyword_entry in keywords_list:
+                root = keyword_entry['root']
+                weight = keyword_entry['weight']
+                variations = keyword_entry.get('variations', [])
 
-    # ACTIONS
-    'podpor': 1,      # podpora (support)
-    'organiz': 1,     # organizace
-    'projekt': 1,     # projekt
-}
+                # Store both root and all variations
+                # Using a tuple (root, variations_set) as value
+                keywords_dict[root] = {
+                    'weight': weight,
+                    'variations': set(variations) if variations else set(),
+                    'category': category,
+                    'description': keyword_entry.get('description', '')
+                }
+
+        return {
+            'keywords': keywords_dict,
+            'boilerplate_terms': config['boilerplate']['junk_terms'],
+            'safe_terms': config['boilerplate']['safe_terms'],
+            'link_density_threshold': config['boilerplate']['link_density_threshold'],
+            'filtering': config['filtering']
+        }
+
+    except FileNotFoundError:
+        print(f"⚠ Warning: Keyword config file not found: {config_path}")
+        print(f"  Using fallback minimal keywords...")
+        # Fallback to minimal keywords
+        return {
+            'keywords': {
+                'spoluprác': {'weight': 3, 'variations': set(), 'category': 'relations'},
+                'partner': {'weight': 3, 'variations': set(), 'category': 'relations'},
+            },
+            'boilerplate_terms': ['nav', 'footer', 'header', 'sidebar', 'menu'],
+            'safe_terms': ['main', 'article', 'content'],
+            'link_density_threshold': 0.6,
+            'filtering': {
+                'min_raw_score': DEFAULT_MIN_RAW_SCORE,
+                'min_density_score': DEFAULT_MIN_DENSITY,
+                'similarity_threshold': DEFAULT_SIMILARITY_THRESHOLD
+            }
+        }
+    except Exception as e:
+        print(f"⚠ Error loading keyword config: {e}")
+        raise
 
 
 class ContentFilter:
     """Cleans, deduplicates, and filters scraped content for relevance."""
 
-    def __init__(self, data_root="data", min_raw_score=DEFAULT_MIN_RAW_SCORE,
-                 min_density=DEFAULT_MIN_DENSITY, similarity_threshold=DEFAULT_SIMILARITY_THRESHOLD):
+    def __init__(self, data_root="data", min_raw_score=None,
+                 min_density=None, similarity_threshold=None, config_path=None):
         self.data_root = Path(data_root)
-        self.min_raw_score = min_raw_score
-        self.min_density = min_density
-        self.similarity_threshold = similarity_threshold
+
+        # Load configuration from file
+        if config_path is None:
+            config_path = DEFAULT_CONFIG_PATH
+
+        self.config = load_keyword_config(config_path)
+
+        # Use provided values or fall back to config file or defaults
+        self.min_raw_score = min_raw_score if min_raw_score is not None else \
+                             self.config['filtering']['min_raw_score']
+        self.min_density = min_density if min_density is not None else \
+                           self.config['filtering']['min_density_score']
+        self.similarity_threshold = similarity_threshold if similarity_threshold is not None else \
+                                   self.config['filtering']['similarity_threshold']
+
+        # Store keywords and boilerplate config
+        self.keywords = self.config['keywords']
+        self.boilerplate_terms = self.config['boilerplate_terms']
+        self.safe_terms = self.config['safe_terms']
+        self.link_density_threshold = self.config['link_density_threshold']
 
         self.stats = {
             'processed': 0,
@@ -173,7 +204,7 @@ class ContentFilter:
             id_str = str(element.get('id', '')).lower()
             class_str = " ".join(element.get('class', [])).lower()
 
-            if any(safe in class_str for safe in SAFE_TERMS) or any(safe in id_str for safe in SAFE_TERMS):
+            if any(safe in class_str for safe in self.safe_terms) or any(safe in id_str for safe in self.safe_terms):
                 continue
 
             # Role Check - remove navigation/banner roles
@@ -185,11 +216,11 @@ class ContentFilter:
 
             # ID/Class Junk Check
             if element.get('id'):
-                if any(term in id_str for term in BOILERPLATE_TERMS):
+                if any(term in id_str for term in self.boilerplate_terms):
                     element.decompose()
                     continue
             if element.get('class'):
-                if any(term in class_str for term in BOILERPLATE_TERMS):
+                if any(term in class_str for term in self.boilerplate_terms):
                     element.decompose()
                     continue
 
@@ -203,7 +234,7 @@ class ContentFilter:
 
             if text_len > 0:
                 density = link_len / text_len
-                if density > 0.6:  # >60% links = navigation
+                if density > self.link_density_threshold:
                     div.decompose()
 
         # Extract cleaned text
@@ -240,6 +271,13 @@ class ContentFilter:
         """
         Calculate both Raw Score (total weight) and Density Score (weight per 100 words).
 
+        Uses both root matching and exact variations for better accuracy.
+        For each keyword, counts occurrences of:
+        1. The root (catches most variations)
+        2. Exact variations (for precision)
+
+        Takes the maximum count to avoid double-counting.
+
         Returns:
             tuple: (raw_score, density_score, found_stats)
         """
@@ -253,12 +291,31 @@ class ContentFilter:
         raw_score = 0
         found_stats = []
 
-        for root, weight in RELEVANCE_KEYWORDS.items():
-            count = text_lower.count(root)
+        for root, keyword_data in self.keywords.items():
+            weight = keyword_data['weight']
+            variations = keyword_data['variations']
+
+            # Count root occurrences
+            root_count = text_lower.count(root)
+
+            # Count exact variation matches (using word boundaries)
+            # Build regex pattern for whole word matching
+            if variations:
+                # Create pattern like: \b(spolupráce|spolupracovat|...)\b
+                variation_pattern = r'\b(' + '|'.join(re.escape(v.lower()) for v in variations) + r')\b'
+                variation_matches = re.findall(variation_pattern, text_lower)
+                variation_count = len(variation_matches)
+
+                # Use the maximum to avoid double-counting
+                # (variations already contain the root in most cases)
+                count = max(root_count, variation_count)
+            else:
+                count = root_count
 
             if count > 0:
                 term_score = count * weight
                 raw_score += term_score
+                category = keyword_data.get('category', '')
                 found_stats.append(f"{root}({count}×w{weight})")
 
         # Density Score: Points per 100 words
@@ -471,12 +528,14 @@ Examples:
     parser.add_argument('--all', action='store_true', help='Process all organizations')
     parser.add_argument('--data-root', type=str, default='data',
                        help='Root data directory (default: data)')
-    parser.add_argument('--min-score', type=int, default=DEFAULT_MIN_RAW_SCORE,
-                       help=f'Minimum raw relevance score (default: {DEFAULT_MIN_RAW_SCORE})')
-    parser.add_argument('--min-density', type=float, default=DEFAULT_MIN_DENSITY,
-                       help=f'Minimum density score per 100 words (default: {DEFAULT_MIN_DENSITY})')
-    parser.add_argument('--similarity', type=float, default=DEFAULT_SIMILARITY_THRESHOLD,
-                       help=f'Jaccard similarity threshold for dupes (default: {DEFAULT_SIMILARITY_THRESHOLD})')
+    parser.add_argument('--config', type=str, default=None,
+                       help=f'Path to keyword config file (default: {DEFAULT_CONFIG_PATH})')
+    parser.add_argument('--min-score', type=int, default=None,
+                       help=f'Minimum raw relevance score (overrides config, default from config: 5)')
+    parser.add_argument('--min-density', type=float, default=None,
+                       help=f'Minimum density score per 100 words (overrides config, default from config: 0.5)')
+    parser.add_argument('--similarity', type=float, default=None,
+                       help=f'Jaccard similarity threshold for dupes (overrides config, default from config: 0.85)')
     parser.add_argument('--list', action='store_true',
                        help='List available organizations and sessions')
 
@@ -487,7 +546,8 @@ Examples:
         data_root=args.data_root,
         min_raw_score=args.min_score,
         min_density=args.min_density,
-        similarity_threshold=args.similarity
+        similarity_threshold=args.similarity,
+        config_path=args.config
     )
 
     # Handle --list command

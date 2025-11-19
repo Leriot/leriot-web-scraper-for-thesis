@@ -279,10 +279,89 @@ python scripts/filter_content.py --org "..." --similarity 0.75
 python scripts/filter_content.py --org "..." --similarity 0.90
 ```
 
+### Customizing Keywords
+
+**Keywords are now configurable!** Edit `config/content_filter_keywords.yaml` to customize filtering:
+
+```yaml
+keywords:
+  relations:
+    - root: "spoluprác"
+      weight: 3
+      variations: ["spolupráce", "spolupracovat", "spolupracující", "spolupracoval"]
+      description: "Cooperation, collaboration"
+
+    - root: "partner"
+      weight: 3
+      variations: ["partner", "partneři", "partnerství", "partnerský", "partnera"]
+      description: "Partners, partnerships"
+
+  funding:
+    - root: "grant"
+      weight: 3
+      variations: ["grant", "grantu", "grantů", "grantový"]
+      description: "Grant"
+```
+
+**How keyword matching works (improved in v2):**
+
+1. **Root matching**: Searches for the keyword root (e.g., "spoluprác")
+2. **Variation matching**: Uses regex with word boundaries to match exact variations (e.g., `\bspolupráce\b`)
+3. **Takes maximum**: Uses max(root_count, variation_count) to avoid double-counting
+4. **Scores**: `count × weight`
+
+**Example:**
+```
+Text: "Naše spolupráce s partnery zahrnuje 5 partnerů."
+
+spoluprác: root_count=1, variations=['spolupráce']=1 → count=1, score=1×3=3
+partner:   root_count=2, variations=['partnery','partnerů']=2 → count=2, score=2×3=6
+
+Total Raw Score: 9
+Word Count: 7
+Density: (9/7)×100 = 128.57 points per 100 words → PASS ✓
+```
+
+**Adding new keywords:**
+
+```yaml
+- root: "kooperac"
+  weight: 3
+  variations: ["kooperace", "kooperační", "kooperovat"]
+  description: "Cooperation (alternative term)"
+```
+
+**Adjusting weights:**
+- Weight 1: Common terms (context indicators)
+- Weight 2: Medium importance (structural terms)
+- Weight 3: High importance (core network concepts)
+
+**Adjusting default thresholds:**
+
+```yaml
+filtering:
+  min_raw_score: 5       # Change to 3 for more lenient, 10 for stricter
+  min_density_score: 0.5 # Change to 0.3 for more lenient, 1.0 for stricter
+  similarity_threshold: 0.85
+```
+
+**Using custom config:**
+
+```bash
+# Create custom config
+cp config/content_filter_keywords.yaml config/my_keywords.yaml
+
+# Edit your keywords
+nano config/my_keywords.yaml
+
+# Use custom config
+python scripts/filter_content.py --org "..." --config config/my_keywords.yaml
+```
+
 ### Dependencies
 
 ```bash
-pip install beautifulsoup4
+pip install beautifulsoup4 pyyaml
 ```
 
 ---
@@ -292,13 +371,14 @@ pip install beautifulsoup4
 Both scripts require additional dependencies:
 
 ```bash
-pip install pdfplumber beautifulsoup4
+pip install pdfplumber beautifulsoup4 pyyaml
 ```
 
-Or add to `requirements.txt`:
-```
-pdfplumber>=0.9.0
-beautifulsoup4>=4.12.0
+Note: `beautifulsoup4` and `pyyaml` are already in requirements.txt. Only `pdfplumber` needs to be added:
+
+```bash
+# Or install from requirements.txt
+pip install -r requirements.txt
 ```
 
 ---
