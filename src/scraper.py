@@ -275,12 +275,19 @@ class NGOScraper:
                 check_duplicates = self.config['quality']['check_content_hash']
                 self.storage.save_page(url, content, encoding, check_duplicates)
 
+            # Extract metadata (including publication date)
+            publication_date = None
+            if self.config['extraction']['extract_metadata']:
+                metadata = self.content_extractor.extract_metadata(html, url)
+                publication_date = metadata.get('published_date')
+                logger.debug(f"Publication date for {url}: {publication_date or 'N/A'}")
+
             # Extract links
             if self.config['extraction']['extract_links']:
                 links = self.content_extractor.extract_links(html, url)
 
-                # Store links for network analysis
-                self.storage.add_links(url, links)
+                # Store links for network analysis (with publication date)
+                self.storage.add_links(url, links, publication_date)
                 self.stats['total_links'] += len(links)
 
                 # Add internal links to queue
