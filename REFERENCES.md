@@ -385,4 +385,4 @@ Special acknowledgment to:
 ---
 
 **Version History:**
-- v1.0 (2025-01-19): Initial comprehensive reference list
+- v1.0 (2025-11-19): Initial comprehensive reference list
